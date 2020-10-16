@@ -1,0 +1,6 @@
+# virtual environment
+/venv
+# dataset
+/dataset
+/*.zip
+.vscode
