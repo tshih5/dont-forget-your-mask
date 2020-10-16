@@ -1,6 +1,7 @@
 # virtual environment
 /venv
 # dataset
+/mini-dataset
 /dataset
 /*.zip
 .vscode
