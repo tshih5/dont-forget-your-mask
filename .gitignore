@@ -1,7 +1,10 @@
 # virtual environment
 /venv
 # dataset
-/mini-dataset
-/dataset
+/*data*
+/test_img
 /*.zip
+*.png
+*.model
+*.ipynb*
 .vscode

@@ -16,6 +16,7 @@ from sklearn.preprocessing import LabelBinarizer
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import classification_report
 from imutils import paths
+import tensorflow as tf
 import matplotlib.pyplot as plt 
 import numpy as np 
 import argparse
@@ -27,24 +28,38 @@ ap.add_argument("-p", "--plot", type=str, default="plot.png", help="path to outp
 ap.add_argument("-m", "--model", type=str, default="mask_detector.model", help="path to mask detector model output")
 args = vars(ap.parse_args())
 
+#enable gpu
+config = tf.compat.v1.ConfigProto(gpu_options = tf.compat.v1.GPUOptions(per_process_gpu_memory_fraction=0.8)) #device_count = {'GPU': 1}
+config.gpu_options.allow_growth = True
+session = tf.compat.v1.Session(config=config)
+tf.compat.v1.keras.backend.set_session(session)
+
 # initial learning rate, epochs, batch size
 INIT_LR = 1e-4
-EPOCHS = 20
+EPOCHS = 5
 BS = 32
 
+print("[LOG] Processing Images")
+
 #get images from dataset directory
-print("Loading images...")
+print("[LOG] Loading images...")
 imagePaths = list(paths.list_images(args["dataset"]))
 data = []
 labels = []
-
+labelstr = ""
+count = 1
 #loop over image paths
 for imagePath in imagePaths:
     #get label for image
-    label = imagePath.split(os.path.sep)[-3]
-    #load image and preprocess
-    image = load_img(imagePath, target_size=(128, 128))
+    label = imagePath.split(os.path.sep)[-2]
+    if(label != labelstr):
+        print("Label #" + str(count) + ": " + label)
+        labelstr = label
+        count += 1
+    #load image
+    image = load_img(imagePath, target_size=(224, 224))
     image = img_to_array(image)
+    #scale pixel intensity
     image = preprocess_input(image)
 
     #append image/ label to list
@@ -54,19 +69,19 @@ for imagePath in imagePaths:
 #convert data and labels to numpy array
 data = np.array(data, dtype="float32")
 labels = np.array(labels)
+print("[LOG] Print array shape")
+print(data.shape, "\n")
 
-print("[LOG] Done loading.")
+print("[LOG] Done Processing Images.")
 
-#one-hot encoding on label (does it have to be one hot)
+#perform one-hot encoding on the labels with sklearn
 lb = LabelBinarizer()
 labels = lb.fit_transform(labels)
 labels = to_categorical(labels)
 
+print("[LOG] Splitting data ")
 #partition data into training/testing splits
 (trainData, testData, trainLabels, testLabels) = train_test_split(data, labels, test_size=0.20, stratify=labels, random_state=42)
-print("[LOG] Print arary shape")
-print(trainData.shape, "\n")
-print(trainLabels.shape, "\n")
 
 #data augmentation parameters: randomly zoom, shear, rotate, shift and flip images
 aug = ImageDataGenerator(
@@ -79,15 +94,15 @@ aug = ImageDataGenerator(
     fill_mode="nearest"
 )
 
-# load MobileNetV2
-baseModel = MobileNetV2(weights="imagenet", include_top=False, input_tensor=Input(shape=[128, 128, 3]))
+# load MobileNetV2 with imagenet weights(the base neural net for image classification)
+baseModel = MobileNetV2(weights="imagenet", include_top=False, input_shape=(224, 224, 3))
 
-#construct head of model that will be placed on top of the base model
+#construct head of model that will be placed after the output layer
 headModel = baseModel.output
-headModel = AveragePooling2D(pool_size=(8, 8))(headModel)
+headModel = AveragePooling2D(pool_size=(7, 7))(headModel) #pool size = input shape dim / batch size
 headModel = Flatten(name="flatten")(headModel)
-headModel = Dense(64, activation="relu")(headModel)
-headModel = Dropout(0.5)(headModel)
+headModel = Dense(128, activation="relu")(headModel)
+headModel = Dropout(0.5)(headModel)                     # typical number for dropout
 headModel = Dense(2, activation="softmax")(headModel)
 
 #place head of FC model on top of base model (will become to model to train)
@@ -106,15 +121,16 @@ model.compile(loss="binary_crossentropy", optimizer=opt, metrics=["accuracy"])
 #train head of network
 print("[INFO] training head...")
 H = model.fit(
-    aug.flow(trainData, trainLabels, bat_size=BS),
-    steps_per_epoch=len(trainData) // BS,
-    validation_data = (testData, testLabels),
-    validation_steps = len(trainData) // BS,
+    aug.flow(trainData, trainLabels, batch_size=BS),
+    steps_per_epoch=(len(trainData) // BS),
+    validation_data=(testData, testLabels),
+    validation_steps=(len(testData) // BS),
     epochs=EPOCHS
 )
 
 #predict using testing set
 print("[INFO] evaluating network...")
+print(model.evaluate(testData, testLabels))
 predIdxs = model.predict(testData, batch_size=BS)
 
 #for each image in testing set, find label with largest predicted probablity
@@ -128,6 +144,9 @@ print("[INFO] saving mask detector model")
 model.save(args["model"], save_format="h5")
 
 #plot accuracy/loss curve
+print("[LOG] Show History...\n")
+print(H.history, "\n")
+
 N = EPOCHS
 plt.style.use("ggplot")
 plt.figure()
@@ -138,5 +157,5 @@ plt.plot(np.arange(0, N), H.history["val_accuracy"], label="val_loss")
 plt.title("Training Loss and Accuracy")
 plt.xlabel("Epoch #")
 plt.ylabel("Loss/Accuracy")
-plt.legent(loc="lower left")
+plt.legend(loc="lower left")
 plt.savefig(args["plot"])
