@@ -1,10 +1,10 @@
 # virtual environment
 /venv
 # dataset
-/*data*
-/test_img
-/*.zip
+/ds_*
+*.zip
 *.png
 *.model
 *.ipynb*
+/test_img
 .vscode
