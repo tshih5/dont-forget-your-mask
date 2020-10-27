@@ -173,10 +173,12 @@ if __name__ == '__main__':
         # (will not send a text for the first TIME_OUT seconds the video feed starts processing)
         if diff.total_seconds() > TIME_OUT:
             print("ready to send messages")
+            # loop over index of frame counts and send a text if the count is over the cutoff
             for count in frame_counts:
                 print(count)
                 if count > CUT_OFF:
                     send_sms_message()
+                    # reset timer
                     frame_counts = [0] * 5
                     start_time = curr_time
                 break
