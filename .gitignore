@@ -8,3 +8,4 @@
 *.ipynb*
 /test_img
 .vscode
+.env
