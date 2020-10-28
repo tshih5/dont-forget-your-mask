@@ -12,31 +12,31 @@ import cv2
 import os
 
 # number of seconds before a new text can be sent
-TIME_OUT = 10
+TIME_OUT = 20
 # number of no mask frames to pass before sending a text
 CUT_OFF = 40
 
 def detect_faces(frame, face_net):
     # grab from dimensions of frame and create blob from it
     (h, w) = frame.shape[:2]
-    #use standard ImageNet means
+    # use standard ImageNet means
     means = (103.939, 116.779, 123.68)
     blob = cv2.dnn.blobFromImage(frame, 1.0, (300, 300), means)
 
-    #pass blob through neural network to obtain face detections
+    # pass blob through neural network to obtain face detections
     face_net.setInput(blob)
     detections = face_net.forward()
     return (h, w, detections)
 
 def detect_and_predict_mask(frame, face_net, mask_net):
-    (h, w, detections) = detect_faces(frame, face_net)
-
-    #initialize arrays
+    # initialize arrays
     faces = []
     locs = []
     preds = []
     subjects = []
-    
+
+    h, w, detections = detect_faces(frame, face_net)
+
     # loop over the detections
     for i in range(0, detections.shape[2]):
         # get face probability
@@ -48,14 +48,14 @@ def detect_and_predict_mask(frame, face_net, mask_net):
             # the object
             box = detections[0, 0, i, 3:7] * np.array([w, h, w, h])
             (x_0, y_0, x_1, y_1) = box.astype("int")
-            #ensure the bounding box does not exceed (w - 2,h - 2) otherwise it will cause a crash
-            #(0, 0) represents the top left of the frame
+            # ensure the bounding box does not exceed (w - 2,h - 2) otherwise it will cause a crash
+            # (0, 0) represents the top left of the frame
             x_0 = min(max(x_0, 0), w - 2)
             y_0 = min(max(y_0, 0), h - 2)
             x_1 = min(x_1, w - 1)
             y_1 = min(y_1, h - 1)
 
-            #crop frame to detection area and preprocess
+            # crop frame to detection area and preprocess
             face = process_frame_to_face(frame, (x_0, x_1, y_0, y_1))
 
             # append face and location data to array
@@ -78,20 +78,19 @@ def process_frame_to_face(frame, coord):
     face = preprocess_input(face)
     return face
 
-def send_sms_message():
-    #load account credentials from environment variable
-    message_body = 'The program has detected that you don\'t have a mask on! >:('
-    load_dotenv()
-    account_sid = os.getenv('ACCOUNT_SID')
-    auth_token = os.getenv('ACCOUNT_AUTH')
-    twilio_number = os.getenv('TWILIO_NUMBER')
-    personal_number = os.getenv('PERSONAL_NUMBER')
-    client = Client(account_sid, auth_token)
+def send_sms_message(client, twilio_number, personal_number):
+    # load account credentials from environment variable
+    message_body = 'I have detected that you don\'t have a mask on! >:('
+
     message = client.messages.create(body = message_body,
                     from_= twilio_number,
                     to = personal_number
                 )
     print('Message has been sent')
+
+def time_diff(start_time, end_time):
+    # times are in datetime format
+    return (end_time - start_time).total_seconds()
 
 if __name__ == '__main__':
     #enable gpu
@@ -99,6 +98,14 @@ if __name__ == '__main__':
     config.gpu_options.allow_growth = True
     session = tf.compat.v1.Session(config=config)
     tf.compat.v1.keras.backend.set_session(session)
+
+    # initialize twilio client
+    load_dotenv()
+    account_sid = os.getenv('ACCOUNT_SID')
+    auth_token = os.getenv('ACCOUNT_AUTH')
+    twilio_number = os.getenv('TWILIO_NUMBER')
+    personal_number = os.getenv('PERSONAL_NUMBER')
+    client = Client(account_sid, auth_token)
     
     #parse command-line arguments
     ap = argparse.ArgumentParser()
@@ -126,7 +133,7 @@ if __name__ == '__main__':
     vs = cv2.VideoCapture(0, cv2.CAP_DSHOW)
     time.sleep(2.0)
 
-    # #initialize array that stores the number of consecutive frames 
+    # initialize array that stores the number of consecutive frames 
     # each subject appears to have no mask in
     frame_counts = [0] * 5
     start_time = datetime.now()
@@ -138,52 +145,50 @@ if __name__ == '__main__':
         # detect faces in the frame and determine if they are wearing a
         # face mask or not
         (location, predictions, subjects) = detect_and_predict_mask(frame, face_net, mask_net)
-        #loop over predictions and corresponding locations
+        # loop over predictions and corresponding locations
         for index, (box, prediction, subject) in enumerate(zip(location, predictions, subjects)):
             # get box coordinates
             (x_0, y_0, x_1, y_1) = box
-            #get prediction percentages
+            # get prediction percentages
             (mask, without_mask) = prediction
-            #if mask probability is greater than withoutmask probability
+            # if mask probability is greater than withoutmask probability
             if mask > without_mask:
                 label = "Mask"
-                #BGR format
+                # BGR format
                 color = (0, 255, 0)
                 frame_counts[index] = 0
             else:
                 label = "No Mask"
-                #BGR format
+                # BGR format
                 color = (0, 0, 255)
                 frame_counts[index] += 1
 
-            #format label string to be put on top of bounding box
+            # format label string to be put on top of bounding box
             label = "{0}: {1:.2f}%".format(label, max(mask, without_mask) * 100)
             obj_name = "Subject #{0}".format(subject)
-            #display the label and bounding box rectangle on the output
+            # display the label and bounding box rectangle on the output
             cv2.putText(frame, label, (x_0, y_0 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.55, color, 2)
             cv2.putText(frame, obj_name, (x_0, y_1 + 20), cv2.FONT_HERSHEY_SIMPLEX, 0.55, color, 2)
             cv2.rectangle(frame, (x_0, y_0), (x_1, y_1), (255, 0, 0), 2)
-        # for all other indexes of count frames, set to zero
+        # for all other indexes of count frames, set to zero because those faces were not detected
         length = len(predictions)
         frame_counts[length:5] = [0 for i in range(5 - length)]
-        # determine if program will send you a text to remind you to wear a mask
+        # get the current time
         curr_time = datetime.now()
-        # get time diff between current time and previous
-        diff = curr_time - start_time
         # (will not send a text for the first TIME_OUT seconds the video feed starts processing)
-        if diff.total_seconds() > TIME_OUT:
+        if time_diff(start_time, curr_time) > TIME_OUT:
             print("ready to send messages")
             # loop over index of frame counts and send a text if the count is over the cutoff
             for count in frame_counts:
                 print(count)
                 if count > CUT_OFF:
-                    send_sms_message()
-                    # reset timer
+                    send_sms_message(client, twilio_number, personal_number)
+                    # reset timer and frame counter
                     frame_counts = [0] * 5
                     start_time = curr_time
+                    print("waiting for ", TIME_OUT, "seconds before a new text can be sent")
                 break
-    
-        # print(frame_counts)
+
         #display output frame
         cv2.imshow("Frame", frame)
         #wait for q press
