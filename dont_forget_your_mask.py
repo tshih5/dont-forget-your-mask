@@ -19,7 +19,7 @@ CUT_OFF = 40
 def detect_faces(frame, face_net):
     # grab from dimensions of frame and create blob from it
     (h, w) = frame.shape[:2]
-    # use standard ImageNet means
+    # use standard ImageNet means for color channels
     means = (103.939, 116.779, 123.68)
     blob = cv2.dnn.blobFromImage(frame, 1.0, (300, 300), means)
 
@@ -41,7 +41,7 @@ def detect_and_predict_mask(frame, face_net, mask_net):
     for i in range(0, detections.shape[2]):
         # get face probability
         confidence = detections[0, 0, i, 2]
-        # filter out weak detections by ensuring the confidence is
+        # filter out weak face detections by ensuring the confidence is
         # greater than the minimum confidence
         if confidence > args["confidence"]:
             # compute the (x, y)-coordinates of the bounding box for
