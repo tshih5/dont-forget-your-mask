@@ -25,21 +25,16 @@ class TwilioClient():
         message = self.client.messages.create(body = message_text, from_=self.twilio_number, to=self.personal_number)
 
     def set_twilio_number(self, number):
-        
         self.twilio_number = number
     
     def get_twilio_number(self):
         return self.twilio_number
 
     def set_personal_number(self, number):
-
         self.personal_number = number
     
     def get_personal_number(self):
         return self.personal_number
-
-    
-
 
 class Application(tk.Frame):
     def __init__(self, window, window_title, video_source=0):
@@ -47,11 +42,18 @@ class Application(tk.Frame):
         self.window = window
         self.window.title(window_title)
         
+        #get window width/height
+        self.screen_width = window.winfo_screenwidth()
+        self.screen_height = window.winfo_screenheight()
+
         self.start_time = datetime.now()
         self.curr_time = datetime.now()
+
+        # logic to print "ready" ONCE when ready to send messages
         self.sms_print_times = 0
-        # initialize video source
+        
         self.interval = 20
+        # initialize video source
         self.video_source = video_source
         self.vid = MyVideoCapture(self.video_source)
 
@@ -82,16 +84,16 @@ class Application(tk.Frame):
         self.label_valid_warn.grid(row=5, columnspan=2)
 
         # add blank label for number validation
-        self.label_personal_number = tk.Label(window, text= "Phone number is: ",font=("helvetica", 10))
+        self.label_personal_number = tk.Label(window, text= "Phone number is: ",font=("helvetica", 10), bg="red")
         self.label_personal_number.grid(row=6, column=1)
-        self.label_twilio_number = tk.Label(window, text= "Twilio number is: ",font=("helvetica", 10))
+        self.label_twilio_number = tk.Label(window, text= "Twilio number is: ",font=("helvetica", 10), bg="red")
         self.label_twilio_number.grid(row=6, column=0)
 
         # create Twilio Client
         self.tw_client = TwilioClient(os.getenv("ACCOUNT_SID"), os.getenv("ACCOUNT_AUTH"))
 
         # button to set phone numbers
-        self.btn_set_vars = tk.Button(window, text="Get numbers", width=30, command=self.set_vars)
+        self.btn_set_vars = tk.Button(window, text="Set Phone numbers", width=30, command=self.set_vars)
         self.btn_set_vars.grid(row=4, column=1)
 
         #button to toggle stream processing
@@ -99,6 +101,10 @@ class Application(tk.Frame):
         self.btn_proccess_stream.grid(row=4, column=0)
         self.update_image()
 
+    def command_wrapper(self):
+        print("hi")
+
+    # reads phone number and twilio number from entry, checks validity and shows a status pop up
     def set_vars(self):
         pn = self.entry_personal_number.get()
         tn = self.entry_twilio_number.get()
@@ -106,14 +112,43 @@ class Application(tk.Frame):
         #check validity of both numbers
         pn_found, pn_result = self.is_valid_number(pn)
         tn_found, tn_result = self.is_valid_number(tn)
-        # set numbers in twilio client
-        self.tw_client.set_personal_number(pn_result)
-        self.tw_client.set_twilio_number(tn_result)
+        bg_pn_color = bg_tn_color = "green"
+
+        if pn_found and tn_found:
+            # update saved numbers
+            self.tw_client.set_personal_number(pn_result)
+            self.tw_client.set_twilio_number(tn_result)
+
+            self.pop_out = tk.Toplevel(self.window)
+            self.pop_out.geometry("+{}+{}".format(self.screen_width // 2, self.screen_height // 2))
+            self.pop_out_label = tk.Label(self.pop_out, text= "Twilio Number and Phone number saved.",font=("helvetica", 10))
+            self.pop_out_label.grid(row=0, column=0)
+            self.pop_out_btn = tk.Button(self.pop_out, text="Okay", command = self.pop_out.destroy)
+            self.pop_out_btn.grid(row=1, column=0)
+        else:
+            # otherwise show an error window
+            i = 0
+            self.pop_out = tk.Toplevel(self.window)
+            if not pn_found:
+                bg_pn_color = "red"
+                self.pop_out_label = tk.Label(self.pop_out, text= "Phone number is not valid.",font=("helvetica", 10))
+                self.pop_out_label.grid(row=i, column=0)
+                i += 1
+            if not tn_found:
+                bg_tn_color = "red"
+                self.pop_out_label = tk.Label(self.pop_out, text= "Twilio number is not valid.",font=("helvetica", 10))
+                self.pop_out_label.grid(row=i, column=0)
+                i += 1
+            self.pop_out_btn = tk.Button(self.pop_out, text="Okay", command = self.pop_out.destroy)
+            self.pop_out_btn.grid(row=i, column=0)
+
         # update label
-        self.label_personal_number.config(text= "Phone number is: " + self.tw_client.get_personal_number())
-        self.label_twilio_number.config(text= "Twilio number is: " + self.tw_client.get_twilio_number())
+        self.label_personal_number.config(text= "Phone number is: " + self.tw_client.get_personal_number(), bg=bg_pn_color)
+        self.label_twilio_number.config(text= "Twilio number is: " + self.tw_client.get_twilio_number(), bg=bg_tn_color)
     
     # determines whether the input phone number is valid or not.
+    # returns a match object found (can be evaluated as boolean) 
+    # and the resulting string which will be "" if no match is found.
     def is_valid_number(self, number):
         re_string = "\+?[.\s()\-]{0,3}\d{1,2}[.\s()\-]{0,3}\d{3}[.\s()\-]{0,3}\d{3}[.\s()\-]{0,3}\d{4}"
         phone_regex = re.compile(re_string)
@@ -131,16 +166,24 @@ class Application(tk.Frame):
     # toggle stream processing on and off
     def toggle_process_stream(self):
         self.process_video = not self.process_video
+
         if self.process_video:
-            print("Stream start! make sure your contact numbers are saved!")
+            lbl_text = "Stream start! make sure your contact numbers are saved!"
             self.btn_proccess_stream.config(text="Stop Net")
             # when stream processing starts initialize start time
             self.start_time = datetime.now()
         else:
-            print("Stream Stopped.")
+            lbl_text ="Stream Stopped."
             self.btn_proccess_stream.config(text="Start Net")
+        
+        self.pop_out = tk.Toplevel(self.window)
+        self.pop_out.geometry("+{}+{}".format(self.screen_width // 2, self.screen_height // 2))
+        self.pop_out_label = tk.Label(self.pop_out, text= lbl_text,font=("helvetica", 10))
+        self.pop_out_label.grid(row=0, column=0)
+        self.pop_out_btn = tk.Button(self.pop_out, text="Okay", command = self.pop_out.destroy)
+        self.pop_out_btn.grid(row=1, column=0)
 
-    # update window with frame every interval ms
+    # update window with frame every self.interval ms
     def update_image(self):
         ret, self.image = self.vid.get_frame(self.process_video)
         self.curr_time = datetime.now()
@@ -154,6 +197,7 @@ class Application(tk.Frame):
             print("ready to send sms")
             self.sms_print_times += 1
 
+        # determines whether to send sms or not
         if max(self.vid.frame_counts) > 55 and (self.curr_time - self.start_time).total_seconds() > 20:
             # reset frame count
             self.vid.frame_counts = [0] * 5
@@ -164,6 +208,7 @@ class Application(tk.Frame):
 
 
 class MyVideoCapture:
+    #initialize
     def __init__(self, video_source=0):
         self.vid = cv2.VideoCapture(video_source)
         if not self.vid.isOpened():
@@ -194,7 +239,9 @@ class MyVideoCapture:
     def __del__(self):
         if self.vid.isOpened():
             self.vid.release()
-    
+
+    # detect faces using self.face_net
+    # returns frame shape as well as the facial detections
     def detect_faces(self, frame):
         # grab from dimensions of frame and create blob from it
         (h, w) = frame.shape[:2]
@@ -207,6 +254,8 @@ class MyVideoCapture:
         detections = self.face_net.forward()
         return (h, w, detections)
 
+    # crops frame to fit detection coordinates
+    # returns cropped image with preprocessing
     def process_frame_to_face(self, frame, coord):
         face = frame[coord[2]:coord[3], coord[0]:coord[1]]
         face = cv2.cvtColor(face, cv2.COLOR_BGR2RGB)
@@ -215,6 +264,8 @@ class MyVideoCapture:
         face = preprocess_input(face)
         return face
 
+    # detects faces from individual frames and runs mask classifier 
+    # returns detection boxes, the predictions associated with them, and the detection number 
     def detect_and_predict_mask(self, frame):
         # initialize lists
         faces = []
@@ -258,7 +309,8 @@ class MyVideoCapture:
 
         return (locs, preds, subjects)
 
-    #return source frame
+    # grab frame from video stream, optionally process frame
+    # returns frame data and a boolean ret 
     def get_frame(self, process=False):
         if self.vid.isOpened():
             ret, frame = self.vid.read()
@@ -299,15 +351,12 @@ class MyVideoCapture:
                 return(ret, None)
         else:
             return(False, None)
-
+    # take the directory and grabs prototxt file with the model structure
+    # and caffemodel file with weights
     def load_face_net(self, face_directory):
         prototxt_path = os.path.sep.join([face_directory, "deploy.prototxt"])
         weights_path = os.path.sep.join([face_directory, "res10_300x300_ssd_iter_140000.caffemodel"])
         return cv2.dnn.readNet(prototxt_path, weights_path)
-
-    
-
-
 
 if __name__ == "__main__":
     # load environment variables
