@@ -23,6 +23,7 @@ import matplotlib.pyplot as plt
 import numpy as np 
 import argparse
 import os 
+# import gc
 
 ap = argparse.ArgumentParser()
 ap.add_argument("-d", "--dataset", required=True, help="path to input dataset")
@@ -61,7 +62,7 @@ for imagePath in imagePaths:
     # load image
     image = load_img(imagePath, target_size=(224, 224))
     image = img_to_array(image)
-    # scale pixel intensity
+    # convert RGB to BGR, zero center color channels (to have a 0 mean)
     image = preprocess_input(image)
 
     # append image/ label to list
@@ -83,15 +84,15 @@ labels = to_categorical(labels)
 
 print("[LOG] Splitting data ")
 # partition data into training/testing splits
-(trainData, testData, trainLabels, testLabels) = train_test_split(data, labels, test_size=0.20, stratify=labels, random_state=654)
+(trainData, testData, trainLabels, testLabels) = train_test_split(data, labels, test_size=0.20, stratify=labels, random_state=99)
 
 # data augmentation parameters: randomly zoom, shear, rotate, shift and flip images
 aug = ImageDataGenerator(
-    rotation_range=30, 
-    zoom_range=0.15, 
+    rotation_range=40, 
+    zoom_range=0.2, 
     width_shift_range=0.2, 
     height_shift_range=0.2,
-    shear_range=0.15, 
+    shear_range=0.2, 
     horizontal_flip=True,
     vertical_flip=True,
     fill_mode="nearest"
@@ -107,6 +108,8 @@ headModel = Conv2D(256, (1, 1), activation="relu")(headModel)
 headModel = Flatten(name="flatten")(headModel)
 headModel = Dense(128, activation="relu")(headModel)
 headModel = Dropout(0.5)(headModel)                         # typical number for dropout
+headModel = Dense(64, activation="relu")(headModel)
+headModel = Dropout(0.5)(headModel)
 headModel = Dense(2, activation="softmax")(headModel)
 
 # place head of FC model on top of base model (will become to model to train)
@@ -118,11 +121,13 @@ for layer in baseModel.layers:
     layer.trainable = False
 
 # model = Sequential([
-#     Conv2D(64, (3, 3), activation="relu", input_shape=(224, 224, 3)),
+#     Conv2D(512, (3, 3), activation="relu", input_shape=(224, 224, 3)),
 #     AveragePooling2D(pool_size=(7, 7)),
-#     Conv2D(32, (3, 3), activation="relu"),
+#     Conv2D(256, (3, 3), activation="relu"),
 #     Flatten(),
-#     Dense(128, activation="relu"),
+#     Dense(1024, activation="relu"), 
+#     Dropout(0.5),
+#     Dense(256, activation="relu"),
 #     Dropout(0.5),
 #     Dense(2, activation="softmax")
 # ])
