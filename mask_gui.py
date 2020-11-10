@@ -13,6 +13,7 @@ import argparse
 import time
 import os
 import re
+import random
 
 class TwilioClient():
     def __init__(self, account_sid, auth_token):
@@ -20,8 +21,10 @@ class TwilioClient():
         #initalize default numbers
         self.twilio_number=""
         self.personal_number=""
+        self.messages = self.create_message_list()
     
-    def send_sms_message(self, message_text):
+    def send_sms_message(self):
+        message_text = self.messages[random.randint(0, len(self.messages) - 1)]
         message = self.client.messages.create(body = message_text, from_=self.twilio_number, to=self.personal_number)
 
     def set_twilio_number(self, number):
@@ -35,6 +38,17 @@ class TwilioClient():
     
     def get_personal_number(self):
         return self.personal_number
+    
+    def create_message_list(self):
+        messages = []
+        messages.append("The program detected that you don't have a mask on :(")
+        messages.append("Looks like you don't have a mask on! >:(")
+        messages.append("Remember to get your mask before you leave the house :o)")
+        messages.append("Don't forget your mask!")
+        messages.append("Got mask?")
+        messages.append("Protect yourself; bring a mask!")
+        print(messages, "\n")
+        return messages
 
 class Application(tk.Frame):
     def __init__(self, window, window_title, video_source=0):
@@ -70,13 +84,13 @@ class Application(tk.Frame):
         # Add default personal phone number 
         tk.Label(window, text="Personal Number").grid(row=2)
         self.entry_personal_number = tk.Entry(window)
-        self.entry_personal_number.insert(0, os.getenv("PERSONAL_NUMBER"))
+        self.entry_personal_number.insert(0, os.getenv("PERSONAL_NUMBER")) # not needed, but is here for placeholder
         self.entry_personal_number.grid(row=2, column=1)
         
         # Add default Twilio Number 
         tk.Label(window, text="Twilio Number").grid(row=3)
         self.entry_twilio_number = tk.Entry(window)
-        self.entry_twilio_number.insert(0, os.getenv("TWILIO_NUMBER"))
+        self.entry_twilio_number.insert(0, os.getenv("TWILIO_NUMBER")) # not needed, but is here for placeholder
         self.entry_twilio_number.grid(row=3, column=1)
 
         #show warning to user
@@ -100,9 +114,6 @@ class Application(tk.Frame):
         self.btn_proccess_stream = tk.Button(window, text= "Start Net", width=30, command=self.toggle_process_stream)
         self.btn_proccess_stream.grid(row=4, column=0)
         self.update_image()
-
-    def command_wrapper(self):
-        print("hi")
 
     # reads phone number and twilio number from entry, checks validity and shows a status pop up
     def set_vars(self):
