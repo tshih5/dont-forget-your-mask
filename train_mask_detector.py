@@ -88,7 +88,7 @@ print("[LOG] Splitting data ")
 
 # data augmentation parameters: randomly zoom, shear, rotate, shift and flip images
 aug = ImageDataGenerator(
-    rotation_range=40, 
+    rotation_range=30, 
     zoom_range=0.2, 
     width_shift_range=0.2, 
     height_shift_range=0.2,
@@ -136,7 +136,7 @@ for layer in baseModel.layers:
 print("[INFO] compiling model...")
 opt = Adam(lr=INIT_LR, decay=INIT_LR / EPOCHS)
 model.compile(loss="binary_crossentropy", optimizer=opt, metrics=["accuracy"])
-model.summary()
+# model.summary()
 
 # train head of network
 print("[INFO] training head...")
@@ -155,12 +155,15 @@ predIdxs = model.predict(testData, batch_size=BS)
 
 # for each image in testing set, find label with largest predicted probablity
 predIdxs = np.argmax(predIdxs, axis=1)
+# for i in range(len(testLabels)):
+#     print(testLabels.argmax(axis=1)[i], predIdxs[i], "\n")
 
 # classification report
+print("[LOG] Printing classification report...")
 print(classification_report(testLabels.argmax(axis=1), predIdxs, target_names=lb.classes_))
 
 # serialize model to disk
-print("[INFO] saving mask detector model")
+print("[INFO] saving mask detector model:", args["model"])
 model.save(args["model"], save_format="h5")
 
 # plot accuracy/loss curve
