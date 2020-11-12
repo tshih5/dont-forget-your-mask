@@ -187,7 +187,7 @@ print("[LOG] Printing classification report...")
 print(classification_report(valid_gen.classes, predIdxs, target_names=["with_mask", "without_mask"]))
 
 # serialize model to disk
-print("[INFO] saving mask detector model")
+print("[INFO] saving mask detector model:", args["model"])
 model.save(args["model"], save_format="h5")
 
 
