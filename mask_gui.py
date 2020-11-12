@@ -43,7 +43,7 @@ class TwilioClient():
         messages = []
         messages.append("The program detected that you don't have a mask on :(")
         messages.append("Looks like you don't have a mask on! >:(")
-        messages.append("Remember to get your mask before you leave the house :o)")
+        messages.append("Remember to get your mask before you leave the house :)")
         messages.append("Don't forget your mask!")
         messages.append("Got mask?")
         messages.append("Protect yourself; bring a mask!")
