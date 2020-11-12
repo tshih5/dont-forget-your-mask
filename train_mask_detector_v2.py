@@ -5,20 +5,12 @@ from tensorflow.keras.layers import AveragePooling2D
 from tensorflow.keras.layers import Dropout
 from tensorflow.keras.layers import Flatten
 from tensorflow.keras.layers import Dense
-from tensorflow.keras.layers.experimental.preprocessing import Rescaling
 from tensorflow.keras import Input
 from tensorflow.keras.models import Model
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.applications.mobilenet_v2 import preprocess_input
-from tensorflow.keras.preprocessing.image import img_to_array
-from tensorflow.keras.preprocessing.image import load_img
-from tensorflow.keras.utils import to_categorical
-from tensorflow.keras import Sequential
 from tensorflow.keras.layers import Conv2D
-from sklearn.preprocessing import LabelBinarizer
-from sklearn.model_selection import train_test_split
 from sklearn.metrics import classification_report
-from imutils import paths
 import tensorflow as tf
 import matplotlib.pyplot as plt 
 import numpy as np 
@@ -38,6 +30,8 @@ config.gpu_options.allow_growth = True
 session = tf.compat.v1.Session(config=config)
 tf.compat.v1.keras.backend.set_session(session)
 
+print("[LOG] Checking GPU status...")
+
 if tf.test.gpu_device_name():
     print('Default GPU Device: {}'.format(tf.test.gpu_device_name()))
 else:
@@ -48,7 +42,6 @@ INIT_LR = 1e-4
 EPOCHS = 5
 BS = 32
 SEED = 152
-
 
 print("[LOG] Processing Images")
 
